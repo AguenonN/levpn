@@ -93,7 +93,7 @@ data "aws_ami" "ubuntu_sa" {
   }
 }
 
-# ─── Route 53 zone (data source) ─────────────────────────────────────────────
+# ─── Route 53 zone ───────────────────────────────────────────────────────────
 
 data "aws_route53_zone" "main" {
   name         = "aguenonnvpn.com"
@@ -264,7 +264,7 @@ resource "aws_security_group" "levpn_sa" {
   }
 }
 
-# ─── User data script ────────────────────────────────────────────────────────
+# ─── Locals ──────────────────────────────────────────────────────────────────
 
 locals {
   server_service = <<-EOF
@@ -280,6 +280,13 @@ locals {
     [Install]
     WantedBy=multi-user.target
   EOF
+
+  caddy_install = [
+    "curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg",
+    "curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list",
+    "sudo apt-get update -qq && sudo apt-get install -y caddy",
+    "sudo systemctl enable caddy",
+  ]
 }
 
 # ─── EC2 Instances ───────────────────────────────────────────────────────────
@@ -314,13 +321,20 @@ resource "aws_instance" "levpn_us" {
   }
 
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /home/ubuntu/server",
-      "sudo mv /tmp/levpn.service /etc/systemd/system/levpn.service",
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable levpn",
-      "sudo systemctl start levpn",
-    ]
+    inline = concat(
+      [
+        "chmod +x /home/ubuntu/server",
+        "sudo mv /tmp/levpn.service /etc/systemd/system/levpn.service",
+        "sudo systemctl daemon-reload",
+        "sudo systemctl enable levpn",
+        "sudo systemctl start levpn",
+      ],
+      local.caddy_install,
+      [
+        "sudo tee /etc/caddy/Caddyfile > /dev/null << 'CADDYEOF'\nus.aguenonnvpn.com {\n    reverse_proxy /tunnel localhost:8080 {\n        transport http {\n            versions 1.1\n        }\n        header_up Connection \"Upgrade\"\n        header_up Upgrade \"websocket\"\n    }\n    respond / 200\n}\nCADDYEOF",
+        "sudo systemctl restart caddy",
+      ]
+    )
   }
 }
 
@@ -354,13 +368,20 @@ resource "aws_instance" "levpn_eu" {
   }
 
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /home/ubuntu/server",
-      "sudo mv /tmp/levpn.service /etc/systemd/system/levpn.service",
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable levpn",
-      "sudo systemctl start levpn",
-    ]
+    inline = concat(
+      [
+        "chmod +x /home/ubuntu/server",
+        "sudo mv /tmp/levpn.service /etc/systemd/system/levpn.service",
+        "sudo systemctl daemon-reload",
+        "sudo systemctl enable levpn",
+        "sudo systemctl start levpn",
+      ],
+      local.caddy_install,
+      [
+        "sudo tee /etc/caddy/Caddyfile > /dev/null << 'CADDYEOF'\neu.aguenonnvpn.com {\n    reverse_proxy /tunnel localhost:8080 {\n        transport http {\n            versions 1.1\n        }\n        header_up Connection \"Upgrade\"\n        header_up Upgrade \"websocket\"\n    }\n    respond / 200\n}\nCADDYEOF",
+        "sudo systemctl restart caddy",
+      ]
+    )
   }
 }
 
@@ -394,13 +415,20 @@ resource "aws_instance" "levpn_asia" {
   }
 
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /home/ubuntu/server",
-      "sudo mv /tmp/levpn.service /etc/systemd/system/levpn.service",
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable levpn",
-      "sudo systemctl start levpn",
-    ]
+    inline = concat(
+      [
+        "chmod +x /home/ubuntu/server",
+        "sudo mv /tmp/levpn.service /etc/systemd/system/levpn.service",
+        "sudo systemctl daemon-reload",
+        "sudo systemctl enable levpn",
+        "sudo systemctl start levpn",
+      ],
+      local.caddy_install,
+      [
+        "sudo tee /etc/caddy/Caddyfile > /dev/null << 'CADDYEOF'\nasia.aguenonnvpn.com {\n    reverse_proxy /tunnel localhost:8080 {\n        transport http {\n            versions 1.1\n        }\n        header_up Connection \"Upgrade\"\n        header_up Upgrade \"websocket\"\n    }\n    respond / 200\n}\nCADDYEOF",
+        "sudo systemctl restart caddy",
+      ]
+    )
   }
 }
 
@@ -434,13 +462,20 @@ resource "aws_instance" "levpn_sa" {
   }
 
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /home/ubuntu/server",
-      "sudo mv /tmp/levpn.service /etc/systemd/system/levpn.service",
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable levpn",
-      "sudo systemctl start levpn",
-    ]
+    inline = concat(
+      [
+        "chmod +x /home/ubuntu/server",
+        "sudo mv /tmp/levpn.service /etc/systemd/system/levpn.service",
+        "sudo systemctl daemon-reload",
+        "sudo systemctl enable levpn",
+        "sudo systemctl start levpn",
+      ],
+      local.caddy_install,
+      [
+        "sudo tee /etc/caddy/Caddyfile > /dev/null << 'CADDYEOF'\nsa.aguenonnvpn.com {\n    reverse_proxy /tunnel localhost:8080 {\n        transport http {\n            versions 1.1\n        }\n        header_up Connection \"Upgrade\"\n        header_up Upgrade \"websocket\"\n    }\n    respond / 200\n}\nCADDYEOF",
+        "sudo systemctl restart caddy",
+      ]
+    )
   }
 }
 
