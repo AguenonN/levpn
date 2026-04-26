@@ -8,7 +8,23 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var defaultRegion = "us"
+
+var endpoints = map[string]string{
+	"us":   "wss://us.aguenonnvpn.com/tunnel",
+	"eu":   "wss://eu.aguenonnvpn.com/tunnel",
+	"asia": "wss://asia.aguenonnvpn.com/tunnel",
+	"sa":   "wss://sa.aguenonnvpn.com/tunnel",
+}
+
 func main() {
+	endpoint, ok := endpoints[defaultRegion]
+	if !ok {
+		log.Fatalf("Region inconnue : %s", defaultRegion)
+	}
+
+	log.Printf("levpn → région %s (%s)", defaultRegion, endpoint)
+
 	listener, err := net.Listen("tcp", "localhost:1080")
 	if err != nil {
 		log.Fatal("listen error:", err)
@@ -23,11 +39,11 @@ func main() {
 			log.Println("accept error:", err)
 			continue
 		}
-		go handleConnection(conn)
+		go handleConnection(conn, endpoint)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, endpoint string) {
 	defer conn.Close()
 
 	buf := make([]byte, 256)
@@ -54,12 +70,12 @@ func handleConnection(conn net.Conn) {
 	var dest string
 
 	switch addrType {
-	case 0x01: // IPv4
+	case 0x01:
 		ip := net.IP(buf[4:8])
 		port := int(buf[8])<<8 | int(buf[9])
 		dest = fmt.Sprintf("%s:%d", ip.String(), port)
 
-	case 0x03: // nom de domaine
+	case 0x03:
 		addrLen := int(buf[4])
 		host := string(buf[5 : 5+addrLen])
 		port := int(buf[5+addrLen])<<8 | int(buf[5+addrLen+1])
@@ -72,7 +88,7 @@ func handleConnection(conn net.Conn) {
 
 	log.Println("destination:", dest)
 
-	ws, _, err := websocket.DefaultDialer.Dial("wss://us.aguenonnvpn.com/tunnel", nil)
+	ws, _, err := websocket.DefaultDialer.Dial(endpoint, nil)
 	if err != nil {
 		log.Println("websocket error:", err)
 		return
