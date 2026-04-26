@@ -1,14 +1,17 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 
 	"github.com/gorilla/websocket"
 )
 
 var defaultRegion = "us"
+var defaultToken = ""
 
 var endpoints = map[string]string{
 	"us":   "wss://us.aguenonnvpn.com/tunnel",
@@ -18,20 +21,28 @@ var endpoints = map[string]string{
 }
 
 func main() {
+	port := flag.String("p", "1080", "Port local SOCKS5")
+	flag.Parse()
+
 	endpoint, ok := endpoints[defaultRegion]
 	if !ok {
-		log.Fatalf("Region inconnue : %s", defaultRegion)
+		log.Fatalf("Region invalide : %s", defaultRegion)
+	}
+
+	if defaultToken == "" {
+		log.Fatal("Token non défini — binaire mal compilé")
 	}
 
 	log.Printf("levpn → région %s (%s)", defaultRegion, endpoint)
 
-	listener, err := net.Listen("tcp", "localhost:1080")
+	localAddr := net.JoinHostPort("127.0.0.1", *port)
+	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
-		log.Fatal("listen error:", err)
+		log.Fatalf("Port %s déjà utilisé. Relance avec -p 1081", *port)
 	}
 	defer listener.Close()
 
-	log.Println("SOCKS5 proxy listening on localhost:1080")
+	log.Printf("SOCKS5 proxy listening on %s", localAddr)
 
 	for {
 		conn, err := listener.Accept()
@@ -49,12 +60,10 @@ func handleConnection(conn net.Conn, endpoint string) {
 	buf := make([]byte, 256)
 	_, err := conn.Read(buf)
 	if err != nil {
-		log.Println("read error:", err)
 		return
 	}
 
 	if buf[0] != 0x05 {
-		log.Println("not SOCKS5")
 		return
 	}
 
@@ -62,7 +71,6 @@ func handleConnection(conn net.Conn, endpoint string) {
 
 	_, err = conn.Read(buf)
 	if err != nil {
-		log.Println("read error:", err)
 		return
 	}
 
@@ -74,21 +82,22 @@ func handleConnection(conn net.Conn, endpoint string) {
 		ip := net.IP(buf[4:8])
 		port := int(buf[8])<<8 | int(buf[9])
 		dest = fmt.Sprintf("%s:%d", ip.String(), port)
-
 	case 0x03:
 		addrLen := int(buf[4])
 		host := string(buf[5 : 5+addrLen])
 		port := int(buf[5+addrLen])<<8 | int(buf[5+addrLen+1])
 		dest = fmt.Sprintf("%s:%d", host, port)
-
 	default:
-		log.Println("unsupported address type:", addrType)
 		return
 	}
 
 	log.Println("destination:", dest)
 
-	ws, _, err := websocket.DefaultDialer.Dial(endpoint, nil)
+	// Header avec JWT
+	header := http.Header{}
+	header.Add("Authorization", "Bearer "+defaultToken)
+
+	ws, _, err := websocket.DefaultDialer.Dial(endpoint, header)
 	if err != nil {
 		log.Println("websocket error:", err)
 		return
