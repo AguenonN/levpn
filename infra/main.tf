@@ -93,6 +93,13 @@ data "aws_ami" "ubuntu_sa" {
   }
 }
 
+# ─── Route 53 zone (data source) ─────────────────────────────────────────────
+
+data "aws_route53_zone" "main" {
+  name         = "aguenonnvpn.com"
+  private_zone = false
+}
+
 # ─── Key Pairs ───────────────────────────────────────────────────────────────
 
 resource "aws_key_pair" "levpn_us" {
@@ -134,8 +141,15 @@ resource "aws_security_group" "levpn_us" {
   }
 
   ingress {
-    from_port   = 8080
-    to_port     = 8080
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -161,8 +175,15 @@ resource "aws_security_group" "levpn_eu" {
   }
 
   ingress {
-    from_port   = 8080
-    to_port     = 8080
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -188,8 +209,15 @@ resource "aws_security_group" "levpn_asia" {
   }
 
   ingress {
-    from_port   = 8080
-    to_port     = 8080
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -215,8 +243,15 @@ resource "aws_security_group" "levpn_sa" {
   }
 
   ingress {
-    from_port   = 8080
-    to_port     = 8080
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -435,14 +470,10 @@ resource "aws_eip" "levpn_sa" {
   domain   = "vpc"
 }
 
-# ─── Route 53 ────────────────────────────────────────────────────────────────
-
-resource "aws_route53_zone" "main" {
-  name = "aguenonnvpn.com"
-}
+# ─── Route 53 records ────────────────────────────────────────────────────────
 
 resource "aws_route53_record" "us" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "us.aguenonnvpn.com"
   type    = "A"
   ttl     = 300
@@ -450,7 +481,7 @@ resource "aws_route53_record" "us" {
 }
 
 resource "aws_route53_record" "eu" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "eu.aguenonnvpn.com"
   type    = "A"
   ttl     = 300
@@ -458,7 +489,7 @@ resource "aws_route53_record" "eu" {
 }
 
 resource "aws_route53_record" "asia" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "asia.aguenonnvpn.com"
   type    = "A"
   ttl     = 300
@@ -466,7 +497,7 @@ resource "aws_route53_record" "asia" {
 }
 
 resource "aws_route53_record" "sa" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "sa.aguenonnvpn.com"
   type    = "A"
   ttl     = 300
