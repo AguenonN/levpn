@@ -72,7 +72,7 @@ func handleConnection(conn net.Conn) {
 
 	log.Println("destination:", dest)
 
-	ws, _, err := websocket.DefaultDialer.Dial("ws://3.233.174.83:8080/tunnel", nil)
+	ws, _, err := websocket.DefaultDialer.Dial("ws://98.94.249.238:8080/tunnel", nil)
 	if err != nil {
 		log.Println("websocket error:", err)
 		return

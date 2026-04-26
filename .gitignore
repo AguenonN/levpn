@@ -2,3 +2,13 @@
 config.yaml
 config.json
 **/*_credentials*
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+.terraform.lock.hcl
+# Binaires compilés
+server
+client
+server-linux
