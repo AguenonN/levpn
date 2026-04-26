@@ -15,18 +15,32 @@ type OS = "macos" | "windows"
 export default function App() {
   const [os, setOs] = useState<OS>("macos")
 
-  const url = (region: string) => os === "windows" ? `${S3}/levpn-${region}-windows.exe` : `${S3}/levpn-${region}-macos`
+  const url = (region: string) => os === "windows" ? S3+"/levpn-"+region+"-windows.exe" : S3+"/levpn-"+region+"-macos"
 
   const btn = (active: boolean): React.CSSProperties => ({
     padding: "8px 24px", borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none",
     background: active ? "white" : "transparent", color: active ? "black" : "rgba(255,255,255,0.5)",
   })
 
-  const steps = [
-    "Download the client for your region and OS",
-    os === "macos" ? "chmod +x levpn-us-macos && ./levpn-us-macos" : "Double-click levpn-us-windows.exe",
-    "Set SOCKS5 proxy: localhost:1080 in your browser",
+  const stepsWin = [
+    "Download levpn-{region}-windows.exe for your region",
+    "Open cmd.exe : Win+R then type cmd then Enter",
+    "Run : cd Downloads && levpn-us-windows.exe — keep this window open",
+    "Install FoxyProxy extension in your browser",
+    "FoxyProxy > Add proxy > SOCKS5 > 127.0.0.1:1080 > Save > Enable",
   ]
+
+  const stepsMac = [
+    "Download levpn-{region}-macos for your region",
+    "Open Terminal",
+    "Run : chmod +x ~/Downloads/levpn-us-macos",
+    "Run : xattr -cr ~/Downloads/levpn-us-macos",
+    "Run : ~/Downloads/levpn-us-macos — keep this window open",
+    "Install FoxyProxy extension in your browser",
+    "FoxyProxy > Add proxy > SOCKS5 > 127.0.0.1:1080 > Save > Enable",
+  ]
+
+  const steps = os === "windows" ? stepsWin : stepsMac
 
   return (
     <div style={{minHeight:"100vh",background:"#0a0a0a",color:"white",fontFamily:"system-ui,sans-serif"}}>
@@ -62,10 +76,10 @@ export default function App() {
         ))}
       </section>
       <section style={{maxWidth:640,margin:"0 auto",padding:"0 32px 80px"}}>
-        <h3 style={{fontSize:16,fontWeight:600,marginBottom:24,textAlign:"center",color:"rgba(255,255,255,0.6)"}}>Setup in 3 steps</h3>
+        <h3 style={{fontSize:16,fontWeight:600,marginBottom:24,textAlign:"center",color:"rgba(255,255,255,0.6)"}}>Setup guide</h3>
         {steps.map((text, i) => (
           <div key={i} style={{display:"flex",gap:16,padding:16,borderRadius:12,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",marginBottom:12}}>
-            <span style={{color:"rgba(255,255,255,0.2)",fontFamily:"monospace",fontWeight:700,fontSize:14}}>0{i+1}</span>
+            <span style={{color:"rgba(255,255,255,0.2)",fontFamily:"monospace",fontWeight:700,fontSize:14,minWidth:24}}>0{i+1}</span>
             <span style={{color:"rgba(255,255,255,0.6)",fontSize:14}}>{text}</span>
           </div>
         ))}
