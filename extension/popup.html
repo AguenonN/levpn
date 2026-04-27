@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { width:280px; background:#0a0a0a; color:#fff; font-family:system-ui,sans-serif; padding:16px; }
+h1 { font-size:16px; font-weight:600; margin-bottom:12px; }
+.status { font-size:12px; color:rgba(255,255,255,0.4); margin-bottom:16px; }
+.status.on { color:#4ade80; }
+.regions { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+.region-btn { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:10px 12px; border-radius:8px; cursor:pointer; font-size:13px; text-align:left; display:flex; justify-content:space-between; align-items:center; }
+.region-btn:hover { background:rgba(255,255,255,0.12); }
+.region-btn.active { border-color:#4ade80; background:rgba(74,222,128,0.1); }
+.region-btn .dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.2); }
+.region-btn.active .dot { background:#4ade80; }
+.disconnect-btn { width:100%; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.5); padding:10px; border-radius:8px; cursor:pointer; font-size:13px; display:none; }
+.disconnect-btn:hover { background:rgba(255,255,255,0.12); color:#fff; }
+</style>
+</head>
+<body>
+<h1>levpn</h1>
+<div id="status" class="status">Disconnected</div>
+<div class="regions">
+  <button class="region-btn" data-region="us"><span>United States</span><span class="dot"></span></button>
+  <button class="region-btn" data-region="eu"><span>Europe</span><span class="dot"></span></button>
+  <button class="region-btn" data-region="asia"><span>Asia</span><span class="dot"></span></button>
+  <button class="region-btn" data-region="sa"><span>South America</span><span class="dot"></span></button>
+</div>
+<button id="disconnect" class="disconnect-btn">Disconnect</button>
+<script src="popup.js"></script>
+</body>
+</html>

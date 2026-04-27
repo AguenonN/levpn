@@ -2,18 +2,27 @@ package main
 
 import (
 	"log"
-	"net/http"
-
+	"net"
 	"github.com/aguenonn/levpn/internal/tunnel"
 )
 
 func main() {
-	http.HandleFunc("/tunnel", tunnel.Handler)
+	log.Println("levpn server starting...")
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
-	})
+	listener, err := net.Listen("tcp", ":1080")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer listener.Close()
 
-	log.Println("server listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Println("SOCKS5 plain listening on :1080")
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Println("accept error:", err)
+			continue
+		}
+		go tunnel.HandleSOCKS5(conn)
+	}
 }

@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "levpn",
+  "version": "1.0.0",
+  "description": "Private encrypted tunnel. 4 regions. One click.",
+  "permissions": ["proxy", "storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon48.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

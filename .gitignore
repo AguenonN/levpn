@@ -19,3 +19,5 @@ portal/node_modules/
 portal/dist/
 build-clients.sh
 cleanup.sh
+*.swp
+*.swo

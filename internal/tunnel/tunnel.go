@@ -1,97 +1,114 @@
 package tunnel
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
+func HandleSOCKS5(conn net.Conn) {
+	defer conn.Close()
 
-func Handler(w http.ResponseWriter, r *http.Request) {
-	// Auth JWT
-	secretKey := []byte(os.Getenv("LEVPN_SECRET"))
-	if len(secretKey) == 0 {
-		log.Println("LEVPN_SECRET non défini")
-		http.Error(w, "Server misconfigured", http.StatusInternalServerError)
+	buf := make([]byte, 256)
+
+	_, err := conn.Read(buf)
+	if err != nil || buf[0] != 0x05 {
 		return
 	}
 
-	authHeader := r.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		log.Println("connexion refusée : pas de token")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	nMethods := int(buf[1])
+	methods := buf[2 : 2+nMethods]
+
+	hasAuth := false
+	hasNoAuth := false
+	for _, m := range methods {
+		if m == 0x02 {
+			hasAuth = true
+		}
+		if m == 0x00 {
+			hasNoAuth = true
+		}
+	}
+
+	if hasAuth {
+		conn.Write([]byte{0x05, 0x02})
+		_, err = conn.Read(buf)
+		if err != nil {
+			return
+		}
+		uLen := int(buf[1])
+		username := string(buf[2 : 2+uLen])
+		pLen := int(buf[2+uLen])
+		password := string(buf[3+uLen : 3+uLen+pLen])
+		log.Printf("auth attempt: user=%s", username)
+		if !validateJWT(password) {
+			conn.Write([]byte{0x01, 0x01})
+			log.Println("connexion refusee : token invalide")
+			return
+		}
+		conn.Write([]byte{0x01, 0x00})
+	} else if hasNoAuth {
+		conn.Write([]byte{0x05, 0x00})
+		log.Println("connexion sans auth (extension)")
+	} else {
+		conn.Write([]byte{0x05, 0xFF})
 		return
 	}
 
-	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-		return secretKey, nil
-	})
-
-	if err != nil || !token.Valid {
-		log.Println("connexion refusée : token invalide")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	_, err = conn.Read(buf)
+	if err != nil || buf[0] != 0x05 || buf[1] != 0x01 {
 		return
 	}
 
-	// Upgrade HTTP → WebSocket
-	ws, err := upgrader.Upgrade(w, r, nil)
+	addrType := buf[3]
+	var dest string
+
+	switch addrType {
+	case 0x01:
+		ip := net.IP(buf[4:8])
+		port := int(buf[8])<<8 | int(buf[9])
+		dest = fmt.Sprintf("%s:%d", ip.String(), port)
+	case 0x03:
+		addrLen := int(buf[4])
+		host := string(buf[5 : 5+addrLen])
+		port := int(buf[5+addrLen])<<8 | int(buf[5+addrLen+1])
+		dest = fmt.Sprintf("%s:%d", host, port)
+	default:
+		conn.Write([]byte{0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+		return
+	}
+
+	log.Println("tunneling ->", dest)
+
+	tcp, err := net.Dial("tcp", dest)
 	if err != nil {
-		log.Println("upgrade error:", err)
-		return
-	}
-	defer ws.Close()
-
-	// Lire la destination
-	_, dest, err := ws.ReadMessage()
-	if err != nil {
-		log.Println("read dest error:", err)
-		return
-	}
-
-	// Connexion TCP vers la destination
-	tcp, err := net.Dial("tcp", string(dest))
-	if err != nil {
-		log.Println("dial error:", err)
+		conn.Write([]byte{0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 		return
 	}
 	defer tcp.Close()
 
-	log.Printf("tunneling → %s", string(dest))
+	conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 
-	// Pipe bidirectionnel WebSocket ↔ TCP
 	go func() {
-		for {
-			_, msg, err := ws.ReadMessage()
-			if err != nil {
-				return
-			}
-			_, err = tcp.Write(msg)
-			if err != nil {
-				return
-			}
-		}
+		io.Copy(tcp, conn)
 	}()
+	io.Copy(conn, tcp)
+}
 
-	buf := make([]byte, 32*1024)
-	for {
-		n, err := tcp.Read(buf)
-		if n > 0 {
-			ws.WriteMessage(websocket.BinaryMessage, buf[:n])
-		}
-		if err == io.EOF || err != nil {
-			return
-		}
+func validateJWT(tokenString string) bool {
+	secret := []byte(os.Getenv("LEVPN_SECRET"))
+	if len(secret) == 0 {
+		log.Println("LEVPN_SECRET non defini")
+		return false
 	}
+	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+		return secret, nil
+	})
+	return err == nil && token.Valid
 }
