@@ -1,0 +1,1 @@
+function FindProxyForURL(url, host) { return "SOCKS5 eu.aguenonnvpn.com:1080"; }
