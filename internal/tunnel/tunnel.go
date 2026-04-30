@@ -1,114 +1,87 @@
 package tunnel
 
 import (
-	"fmt"
+	"encoding/base64"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"strings"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
-func HandleSOCKS5(conn net.Conn) {
-	defer conn.Close()
-
-	buf := make([]byte, 256)
-
-	_, err := conn.Read(buf)
-	if err != nil || buf[0] != 0x05 {
+func Handler(w http.ResponseWriter, r *http.Request) {
+	expected := os.Getenv("LEVPN_PASSWORD")
+	if expected == "" {
+		log.Println("LEVPN_PASSWORD non defini")
+		http.Error(w, "Server error", 500)
 		return
 	}
 
-	nMethods := int(buf[1])
-	methods := buf[2 : 2+nMethods]
-
-	hasAuth := false
-	hasNoAuth := false
-	for _, m := range methods {
-		if m == 0x02 {
-			hasAuth = true
-		}
-		if m == 0x00 {
-			hasNoAuth = true
-		}
-	}
-
-	if hasAuth {
-		conn.Write([]byte{0x05, 0x02})
-		_, err = conn.Read(buf)
-		if err != nil {
-			return
-		}
-		uLen := int(buf[1])
-		username := string(buf[2 : 2+uLen])
-		pLen := int(buf[2+uLen])
-		password := string(buf[3+uLen : 3+uLen+pLen])
-		log.Printf("auth attempt: user=%s", username)
-		if !validateJWT(password) {
-			conn.Write([]byte{0x01, 0x01})
-			log.Println("connexion refusee : token invalide")
-			return
-		}
-		conn.Write([]byte{0x01, 0x00})
-	} else if hasNoAuth {
-		conn.Write([]byte{0x05, 0x00})
-		log.Println("connexion sans auth (extension)")
-	} else {
-		conn.Write([]byte{0x05, 0xFF})
+	auth := r.Header.Get("Proxy-Authorization")
+	if auth == "" {
+		w.Header().Set("Proxy-Authenticate", "Basic realm=\"levpn\"")
+		w.WriteHeader(407)
 		return
 	}
 
-	_, err = conn.Read(buf)
-	if err != nil || buf[0] != 0x05 || buf[1] != 0x01 {
+	if !checkAuth(auth, expected) {
+		log.Println("auth failed")
+		w.Header().Set("Proxy-Authenticate", "Basic realm=\"levpn\"")
+		w.WriteHeader(407)
 		return
 	}
 
-	addrType := buf[3]
-	var dest string
-
-	switch addrType {
-	case 0x01:
-		ip := net.IP(buf[4:8])
-		port := int(buf[8])<<8 | int(buf[9])
-		dest = fmt.Sprintf("%s:%d", ip.String(), port)
-	case 0x03:
-		addrLen := int(buf[4])
-		host := string(buf[5 : 5+addrLen])
-		port := int(buf[5+addrLen])<<8 | int(buf[5+addrLen+1])
-		dest = fmt.Sprintf("%s:%d", host, port)
-	default:
-		conn.Write([]byte{0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+	if r.Method == "CONNECT" {
+		handleConnect(w, r)
 		return
 	}
 
+	http.Error(w, "Method not allowed", 405)
+}
+
+func handleConnect(w http.ResponseWriter, r *http.Request) {
+	dest := r.Host
 	log.Println("tunneling ->", dest)
 
 	tcp, err := net.Dial("tcp", dest)
 	if err != nil {
-		conn.Write([]byte{0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+		log.Println("dial error:", err)
+		http.Error(w, "Bad gateway", 502)
 		return
 	}
 	defer tcp.Close()
 
-	conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "Hijack not supported", 500)
+		return
+	}
 
-	go func() {
-		io.Copy(tcp, conn)
-	}()
+	conn, _, err := hj.Hijack()
+	if err != nil {
+		log.Println("hijack error:", err)
+		return
+	}
+	defer conn.Close()
+
+	conn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+
+	go func() { io.Copy(tcp, conn) }()
 	io.Copy(conn, tcp)
 }
 
-func validateJWT(tokenString string) bool {
-	secret := []byte(os.Getenv("LEVPN_SECRET"))
-	if len(secret) == 0 {
-		log.Println("LEVPN_SECRET non defini")
+func checkAuth(header string, expected string) bool {
+	if !strings.HasPrefix(header, "Basic ") {
 		return false
 	}
-	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
-	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-		return secret, nil
-	})
-	return err == nil && token.Valid
+	decoded, err := base64.StdEncoding.DecodeString(header[6:])
+	if err != nil {
+		return false
+	}
+	parts := strings.SplitN(string(decoded), ":", 2)
+	if len(parts) != 2 {
+		return false
+	}
+	return parts[1] == expected
 }

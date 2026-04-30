@@ -1,1 +1,1 @@
-function FindProxyForURL(url, host) { return "SOCKS5 us.aguenonnvpn.com:1080"; }
+function FindProxyForURL(url, host) { return "PROXY us.aguenonnvpn.com:8080"; }
