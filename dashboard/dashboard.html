@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>levpn — operations</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#060910;color:#e2e8f0;font-family:'Inter',system-ui,sans-serif}
+  :root{--m:'JetBrains Mono',monospace}
+  .mono{font-family:var(--m)}
+  .scroll-hide::-webkit-scrollbar{display:none}
+  .scroll-hide{-ms-overflow-style:none;scrollbar-width:none}
+  @keyframes ping{75%,100%{transform:scale(2);opacity:0}}
+  .anim-ping{animation:ping 1s cubic-bezier(0,0,.2,1) infinite}
+  .row:hover{background:rgba(255,255,255,.03)}
+  .row:hover .client{color:#64748b}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useCallback,useRef} = React;
+
+const REGIONS = [
+  {id:"us",label:"US East",domain:"us.aguenonnvpn.com",flag:"🇺🇸"},
+  {id:"eu",label:"EU West",domain:"eu.aguenonnvpn.com",flag:"🇪🇺"},
+  {id:"asia",label:"Asia SE",domain:"asia.aguenonnvpn.com",flag:"🇸🇬"},
+  {id:"sa",label:"South America",domain:"sa.aguenonnvpn.com",flag:"🇧🇷"},
+];
+const POLL=5000;
+
+const fmtB=b=>{if(!b)return"0 B";const k=1024,s=["B","KB","MB","GB","TB"],i=Math.floor(Math.log(b)/Math.log(k));return parseFloat((b/Math.pow(k,i)).toFixed(1))+" "+s[i]};
+const fmtUp=s=>{const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);return d>0?`${d}d ${h}h`:h>0?`${h}h ${m}m`:`${m}m`};
+const fmtT=ts=>new Date(ts).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+const fmtD=ms=>!ms?"—":ms<1e3?ms+"ms":ms<6e4?(ms/1e3).toFixed(1)+"s":(ms/6e4).toFixed(1)+"m";
+
+function Dot({on,sz=8}){
+  return <span style={{position:"relative",display:"inline-flex",width:sz,height:sz}}>
+    {on&&<span className="anim-ping" style={{position:"absolute",display:"inline-flex",width:"100%",height:"100%",borderRadius:"50%",background:"#34d399",opacity:.6}}/>}
+    <span style={{position:"relative",display:"inline-flex",borderRadius:"50%",width:sz,height:sz,background:on?"#34d399":"#3f3f46"}}/>
+  </span>
+}
+
+function Spark({data,color}){
+  if(!data||data.length<2)return <div style={{height:32,display:"flex",alignItems:"flex-end",gap:1}}>{Array.from({length:20},(_,i)=><div key={i} style={{flex:1,height:2,background:"#1e293b",borderRadius:2}}/>)}</div>;
+  const mx=Math.max(...data.map(d=>d.v),1);
+  return <div style={{height:32,display:"flex",alignItems:"flex-end",gap:1}}>
+    {data.slice(-20).map((d,i)=><div key={i} style={{flex:1,borderRadius:2,transition:"all .3s",height:Math.max(2,(d.v/mx)*32),background:color,opacity:.35+(i/20)*.65}}/>)}
+  </div>
+}
+
+function RegionCard({region,data,spIn,spOut}){
+  const on=!!data;
+  return <div style={{borderRadius:12,border:`1px solid ${on?"#27272a":"rgba(39,39,42,.4)"}`,padding:16,background:on?"linear-gradient(to bottom,rgba(24,24,27,.8),rgba(24,24,27,.4))":"rgba(24,24,27,.2)",opacity:on?1:.4,transition:"all .2s"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}><Dot on={on}/><span style={{fontSize:14,fontWeight:700,color:"#f1f5f9"}}>{region.flag} {region.id.toUpperCase()}</span></div>
+      <span className="mono" style={{fontSize:11,padding:"2px 8px",borderRadius:20,fontWeight:600,background:on?"rgba(52,211,153,.1)":"#27272a",color:on?"#34d399":"#52525b"}}>{on?"LIVE":"OFF"}</span>
+    </div>
+    {on?<>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4,marginBottom:12}}>
+        <div><div className="mono" style={{fontSize:10,color:"#64748b"}}>ACTIVE</div><div className="mono" style={{fontSize:20,fontWeight:700,color:"#fff"}}>{data.active_connections}</div></div>
+        <div><div className="mono" style={{fontSize:10,color:"#64748b"}}>TOTAL</div><div className="mono" style={{fontSize:20,fontWeight:700,color:"#94a3b8"}}>{data.total_connections}</div></div>
+        <div><div className="mono" style={{fontSize:10,color:"#64748b"}}>UPTIME</div><div className="mono" style={{fontSize:13,fontWeight:500,color:"#94a3b8",marginTop:4}}>{fmtUp(data.uptime_seconds)}</div></div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <div><div className="mono" style={{fontSize:11,color:"#38bdf8",marginBottom:4}}>↓ {fmtB(data.total_bytes_in)}</div><Spark data={spIn} color="#38bdf8"/></div>
+        <div><div className="mono" style={{fontSize:11,color:"#fbbf24",marginBottom:4}}>↑ {fmtB(data.total_bytes_out)}</div><Spark data={spOut} color="#fbbf24"/></div>
+      </div>
+    </>:<div className="mono" style={{fontSize:12,color:"#3f3f46",padding:"24px 0",textAlign:"center"}}>Region offline</div>}
+  </div>
+}
+
+function TrafficRow({c,flag}){
+  return <div className="row" style={{display:"flex",alignItems:"center",gap:8,padding:"6px 12px",borderRadius:4,transition:"background .15s",fontFamily:"var(--m)",fontSize:11}}>
+    <span style={{width:28,textAlign:"center",flexShrink:0}}>{flag}</span>
+    <span style={{width:56,color:"#52525b",flexShrink:0}}>{fmtT(c.timestamp)}</span>
+    <span style={{width:40,textAlign:"center",flexShrink:0,fontSize:10,padding:"2px 4px",borderRadius:4,fontWeight:500,
+      background:c.status==="active"?"rgba(52,211,153,.12)":c.status==="error"?"rgba(248,113,113,.12)":"rgba(39,39,42,.8)",
+      color:c.status==="active"?"#34d399":c.status==="error"?"#f87171":"#52525b"
+    }}>{c.status==="active"?"LIVE":c.status==="error"?"ERR":"OK"}</span>
+    <span style={{flex:1,color:"#d4d4d8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(c.destination||"").replace(":443","").replace(":80","")}</span>
+    <span style={{width:56,textAlign:"right",color:"rgba(56,189,248,.65)",flexShrink:0}}>↓{fmtB(c.bytes_in)}</span>
+    <span style={{width:56,textAlign:"right",color:"rgba(251,191,36,.65)",flexShrink:0}}>↑{fmtB(c.bytes_out)}</span>
+    <span style={{width:48,textAlign:"right",color:"#52525b",flexShrink:0}}>{fmtD(c.duration_ms)}</span>
+    <span className="client" style={{width:96,textAlign:"right",color:"#27272a",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s"}}>{(c.client_ip||"").split(":")[0]}</span>
+  </div>
+}
+
+function demoData(id){
+  const b={us:1,eu:1.3,asia:.7,sa:.5}[id]||1;
+  const ds=["google.com:443","github.com:443","primevideo.com:443","api.openai.com:443","cdn.jsdelivr.net:443","stackoverflow.com:443","youtube.com:443","claude.ai:443","reddit.com:443","x.com:443"];
+  return{region:id,uptime_seconds:Math.floor(3600*b*2+Math.random()*7200),active_connections:Math.floor(Math.random()*4),total_connections:Math.floor(50+Math.random()*80*b),total_bytes_in:Math.floor((400+Math.random()*300)*1048576*b),total_bytes_out:Math.floor((200+Math.random()*200)*1048576*b),auth_failures:Math.floor(Math.random()*4),
+  recent_connections:Array.from({length:15},(_,i)=>({timestamp:new Date(Date.now()-i*(15e3+Math.random()*45e3)).toISOString(),destination:ds[Math.floor(Math.random()*ds.length)],client_ip:`${["86.247.76","192.168.1","10.0.0"][Math.floor(Math.random()*3)]}.${10+Math.floor(Math.random()*200)}:${4e4+Math.floor(Math.random()*1e4)}`,bytes_in:Math.floor(Math.random()*8e6),bytes_out:Math.floor(Math.random()*3e6),duration_ms:Math.floor(50+Math.random()*3e4),status:i===0&&Math.random()>.6?"active":Math.random()>.95?"error":"closed"})),timestamp:new Date().toISOString()}
+}
+
+function App(){
+  const[data,setData]=useState({});
+  const[spark,setSpark]=useState({});
+  const[lastPoll,setLastPoll]=useState(null);
+  const[demo,setDemo]=useState(false);
+  const[tab,setTab]=useState("overview");
+  const prev=useRef({});
+
+  const poll=useCallback(async()=>{
+    const res={};
+    for(const r of REGIONS){try{
+      if(demo){res[r.id]=demoData(r.id);continue}
+      const ac=new AbortController(),t=setTimeout(()=>ac.abort(),3e3);
+      const resp=await fetch(`http://${r.domain}:8080/metrics`,{signal:ac.signal});
+      clearTimeout(t);if(resp.ok)res[r.id]=await resp.json()
+    }catch(e){}}
+    setData(res);setLastPoll(new Date());
+    setSpark(p=>{const n={...p};for(const[id,d]of Object.entries(res)){const pv=prev.current[id];if(pv){n[`${id}_i`]=[...(n[`${id}_i`]||[]).slice(-25),{v:Math.max(0,d.total_bytes_in-pv.i)}];n[`${id}_o`]=[...(n[`${id}_o`]||[]).slice(-25),{v:Math.max(0,d.total_bytes_out-pv.o)}]}prev.current[id]={i:d.total_bytes_in,o:d.total_bytes_out}}return n})
+  },[demo]);
+
+  useEffect(()=>{poll();const iv=setInterval(poll,POLL);return()=>clearInterval(iv)},[poll]);
+
+  const all=Object.values(data);
+  const nUp=all.length,tAct=all.reduce((s,d)=>s+d.active_connections,0),tCon=all.reduce((s,d)=>s+d.total_connections,0),tIn=all.reduce((s,d)=>s+d.total_bytes_in,0),tOut=all.reduce((s,d)=>s+d.total_bytes_out,0),tFail=all.reduce((s,d)=>s+d.auth_failures,0);
+
+  const allTraffic=[];
+  for(const r of REGIONS){if(!data[r.id])continue;for(const c of data[r.id].recent_connections||[])allTraffic.push({...c,_f:r.flag})}
+  allTraffic.sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+
+  const statBar=[["Nodes",nUp,"#34d399"],["Active",tAct,"#38bdf8"],["Total",tCon,"#e2e8f0"],["Inbound",fmtB(tIn),"#38bdf8"],["Outbound",fmtB(tOut),"#fbbf24"],["Auth Fail",tFail,tFail>10?"#f87171":"#64748b"]];
+
+  return <div style={{maxWidth:1200,margin:"0 auto",padding:"20px 16px"}}>
+    {/* Header */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:36,height:36,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#0ea5e9,#6366f1)"}}>
+          <span className="mono" style={{color:"#fff",fontSize:12,fontWeight:700}}>VP</span>
+        </div>
+        <div>
+          <div style={{fontSize:16,fontWeight:700,color:"#f1f5f9"}}>levpn <span style={{fontWeight:300,color:"#64748b"}}>operations</span></div>
+          <div className="mono" style={{fontSize:11,color:"#475569",display:"flex",alignItems:"center",gap:6}}>
+            {lastPoll&&<><Dot on sz={5}/><span>{fmtT(lastPoll.toISOString())}</span></>}
+            <span>·</span><span>{nUp}/{REGIONS.length} nodes</span>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{display:"flex",borderRadius:8,border:"1px solid #27272a",overflow:"hidden"}}>
+          {[["overview","Overview"],["traffic","Live Traffic"]].map(([k,l])=>
+            <button key={k} onClick={()=>setTab(k)} className="mono" style={{padding:"6px 12px",fontSize:11,fontWeight:500,border:"none",cursor:"pointer",transition:"all .15s",background:tab===k?"#27272a":"transparent",color:tab===k?"#fff":"#64748b"}}>{l}</button>
+          )}
+        </div>
+        <button onClick={()=>setDemo(d=>!d)} className="mono" style={{fontSize:11,padding:"6px 12px",borderRadius:8,border:`1px solid ${demo?"rgba(251,191,36,.3)":"rgba(52,211,153,.3)"}`,background:demo?"rgba(251,191,36,.1)":"rgba(52,211,153,.1)",color:demo?"#fbbf24":"#34d399",fontWeight:600,cursor:"pointer"}}>
+          {demo?"◉ DEMO":"◉ LIVE"}
+        </button>
+      </div>
+    </div>
+
+    {/* Stats */}
+    <div style={{display:"flex",justifyContent:"space-around",alignItems:"center",borderRadius:12,border:"1px solid rgba(39,39,42,.5)",background:"rgba(24,24,27,.3)",padding:"12px 16px",marginBottom:20}}>
+      {statBar.map(([l,v,c],i)=><React.Fragment key={l}>
+        {i>0&&<div style={{width:1,height:24,background:"#27272a"}}/>}
+        <div style={{textAlign:"center",padding:"0 8px"}}>
+          <div className="mono" style={{fontSize:9,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</div>
+          <div className="mono" style={{fontSize:18,fontWeight:700,color:c}}>{v}</div>
+        </div>
+      </React.Fragment>)}
+    </div>
+
+    {/* Overview */}
+    {tab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:16}}>
+      {REGIONS.map(r=><RegionCard key={r.id} region={r} data={data[r.id]||null} spIn={spark[`${r.id}_i`]} spOut={spark[`${r.id}_o`]}/>)}
+    </div>}
+
+    {/* Traffic */}
+    {tab==="traffic"&&<div style={{borderRadius:12,border:"1px solid rgba(39,39,42,.5)",background:"rgba(24,24,27,.3)",padding:16}}>
+      <div className="mono" style={{display:"flex",alignItems:"center",gap:8,padding:"0 12px 12px",borderBottom:"1px solid rgba(39,39,42,.4)",fontSize:10,color:"#3f4f63"}}>
+        <span style={{width:28,textAlign:"center",flexShrink:0}}>⬡</span>
+        <span style={{width:56,flexShrink:0}}>TIME</span>
+        <span style={{width:40,textAlign:"center",flexShrink:0}}>ST</span>
+        <span style={{flex:1}}>DESTINATION</span>
+        <span style={{width:56,textAlign:"right",flexShrink:0}}>IN</span>
+        <span style={{width:56,textAlign:"right",flexShrink:0}}>OUT</span>
+        <span style={{width:48,textAlign:"right",flexShrink:0}}>DUR</span>
+        <span style={{width:96,textAlign:"right",flexShrink:0}}>CLIENT</span>
+      </div>
+      {allTraffic.length===0
+        ?<div className="mono" style={{textAlign:"center",padding:"64px 0",color:"#27272a",fontSize:13}}>No traffic recorded</div>
+        :<div className="scroll-hide" style={{maxHeight:500,overflowY:"auto",marginTop:8}}>
+          {allTraffic.slice(0,50).map((c,i)=><TrafficRow key={i} c={c} flag={c._f}/>)}
+        </div>
+      }
+    </div>}
+  </div>
+}
+
+ReactDOM.render(<App/>,document.getElementById("root"));
+</script>
+</body>
+</html>
