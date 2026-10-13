@@ -204,6 +204,9 @@ resource "null_resource" "tls_setup" {
       "  sleep 10",
       "done",
       "sudo certbot certonly --standalone -d ${local.domain} --non-interactive --agree-tos -m ${var.contact_email} --http-01-port 80 || echo 'certbot failed — server will run on port 8080 only'",
+      "sudo mkdir -p /etc/letsencrypt/renewal-hooks/deploy",
+      "printf '#!/bin/sh\\nsystemctl restart levpn\\n' | sudo tee /etc/letsencrypt/renewal-hooks/deploy/restart-levpn.sh > /dev/null",
+      "sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/restart-levpn.sh",
       "sudo systemctl start levpn",
       "echo 'levpn service started for region ${var.region_name}'",
     ]
