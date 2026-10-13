@@ -123,7 +123,7 @@ module "tunnel_sa" {
 # ─── PAC files → S3 ─────────────────────────────────────────────────────────
 
 resource "aws_s3_object" "pac_us" {
-  count        = var.enable_us ? 1 : 0
+  count        = var.enable_pac && var.enable_us ? 1 : 0
   bucket       = var.portal_bucket
   key          = "pac/proxy-us.pac"
   content      = "function FindProxyForURL(url, host) { return \"PROXY us.aguenonnvpn.com:8080\"; }"
@@ -131,7 +131,7 @@ resource "aws_s3_object" "pac_us" {
 }
 
 resource "aws_s3_object" "pac_eu" {
-  count        = var.enable_eu ? 1 : 0
+  count        = var.enable_pac && var.enable_eu ? 1 : 0
   bucket       = var.portal_bucket
   key          = "pac/proxy-eu.pac"
   content      = "function FindProxyForURL(url, host) { return \"PROXY eu.aguenonnvpn.com:8080\"; }"
@@ -139,7 +139,7 @@ resource "aws_s3_object" "pac_eu" {
 }
 
 resource "aws_s3_object" "pac_asia" {
-  count        = var.enable_asia ? 1 : 0
+  count        = var.enable_pac && var.enable_asia ? 1 : 0
   bucket       = var.portal_bucket
   key          = "pac/proxy-asia.pac"
   content      = "function FindProxyForURL(url, host) { return \"PROXY asia.aguenonnvpn.com:8080\"; }"
@@ -147,7 +147,7 @@ resource "aws_s3_object" "pac_asia" {
 }
 
 resource "aws_s3_object" "pac_sa" {
-  count        = var.enable_sa ? 1 : 0
+  count        = var.enable_pac && var.enable_sa ? 1 : 0
   bucket       = var.portal_bucket
   key          = "pac/proxy-sa.pac"
   content      = "function FindProxyForURL(url, host) { return \"PROXY sa.aguenonnvpn.com:8080\"; }"

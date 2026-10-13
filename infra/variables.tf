@@ -57,3 +57,9 @@ variable "contact_email" {
   type    = string
   default = "levpn@aguenonnvpn.com"
 }
+
+variable "enable_pac" {
+  description = "Publish PAC files to the portal S3 bucket (requires a bucket owned by this account)"
+  type        = bool
+  default     = false
+}

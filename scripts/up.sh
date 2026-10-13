@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/.."
 INFRA_DIR="$PROJECT_DIR/infra"
 TFVARS="$INFRA_DIR/terraform.tfvars"
-CLOUDFRONT_ID="E27KNKKU5CUFYT"
+CLOUDFRONT_ID=""
 
 if [ -z "$REGION" ]; then
   echo "Usage: $0 <region>"
@@ -50,7 +50,7 @@ echo "→ terraform apply..."
 terraform apply -auto-approve
 
 echo "→ Invalidation CloudFront..."
-aws cloudfront create-invalidation \
+[ -n "$CLOUDFRONT_ID" ] && aws cloudfront create-invalidation \
   --distribution-id "$CLOUDFRONT_ID" \
   --paths "/pac/proxy-${REGION}.pac" \
   --output text --query 'Invalidation.Id' 2>/dev/null || true
