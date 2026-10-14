@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 
@@ -64,45 +63,25 @@ func main() {
 		select {}
 	}
 
-	tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		NextProtos:   []string{"http/1.1"},
+	}
 	listener, err := tls.Listen("tcp", ":443", tlsConfig)
 	if err != nil {
 		log.Fatalf("TLS listen error: %v", err)
 	}
-	defer listener.Close()
+
+	srv := &http.Server{
+		Handler: handler,
+		// Map non-nil vide = HTTP/2 désactivé.
+		// CONNECT exige Hijack(), qui n'existe qu'en HTTP/1.1.
+		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
+	}
 
 	log.Println("HTTPS proxy listening on :443")
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Printf("accept error: %v", err)
-			continue
-		}
-		go handleTLSConn(conn, handler)
-	}
+	log.Fatal(srv.Serve(listener))
 }
-
-func handleTLSConn(conn net.Conn, handler http.Handler) {
-	defer conn.Close()
-	http.Serve(&singleConnListener{conn: conn}, handler)
-}
-
-type singleConnListener struct {
-	conn   net.Conn
-	served bool
-}
-
-func (l *singleConnListener) Accept() (net.Conn, error) {
-	if l.served {
-		return nil, fmt.Errorf("done")
-	}
-	l.served = true
-	return l.conn, nil
-}
-
-func (l *singleConnListener) Close() error   { return nil }
-func (l *singleConnListener) Addr() net.Addr { return l.conn.LocalAddr() }
 
 func getCertPaths() (string, string) {
 	certFile := os.Getenv("LEVPN_CERT_FILE")
