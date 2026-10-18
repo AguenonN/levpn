@@ -111,7 +111,7 @@ function App(){
     for(const r of REGIONS){try{
       if(demo){res[r.id]=demoData(r.id);continue}
       const ac=new AbortController(),t=setTimeout(()=>ac.abort(),3e3);
-      const resp=await fetch(`http://${r.domain}:8080/metrics`,{signal:ac.signal});
+      const resp=await fetch(`http://${r.domain}:8080/metrics`,{signal:ac.signal,headers:{Authorization:"Basic "+btoa("monitor:"+(window.__lvpw??=(prompt("Mot de passe levpn")||"")))}});
       clearTimeout(t);if(resp.ok)res[r.id]=await resp.json()
     }catch(e){}}
     setData(res);setLastPoll(new Date());

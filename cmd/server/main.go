@@ -44,6 +44,11 @@ func (p *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Requête forward-proxy (URL absolue) = site http:// en clair : non supporté.
+	if r.URL.IsAbs() {
+		http.Error(w, "levpn: HTTPS-only proxy, plain http:// sites are not supported", http.StatusMethodNotAllowed)
+		return
+	}
 	w.Write([]byte("OK"))
 }
 
