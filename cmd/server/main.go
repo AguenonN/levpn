@@ -13,14 +13,11 @@ import (
 
 type proxyHandler struct {
 	metricsHandler http.HandlerFunc
+	password       string
 }
 
 func (p *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/metrics" && r.Method != http.MethodConnect {
-		p.metricsHandler(w, r)
-		return
-	}
-
+	// 1. Preflight CORS d'abord : il n'embarque jamais d'identifiants.
 	if r.Method == http.MethodOptions {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization")
@@ -29,6 +26,19 @@ func (p *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 2. /metrics : accès direct (pas via proxy) → header Authorization.
+	if r.URL.Path == "/metrics" && r.Method != http.MethodConnect {
+		if !tunnel.ValidBasic(r.Header.Get("Authorization"), p.password) {
+			// Pas de WWW-Authenticate : évite la popup native du navigateur côté dashboard.
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		p.metricsHandler(w, r)
+		return
+	}
+
+	// 3. Proxy.
 	if r.Method == http.MethodConnect {
 		tunnel.Handler(w, r)
 		return
@@ -38,6 +48,11 @@ func (p *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	password := os.Getenv("LEVPN_PASSWORD")
+	if password == "" {
+		log.Fatal("LEVPN_PASSWORD is empty — refusing to start an open proxy")
+	}
+
 	region := os.Getenv("LEVPN_REGION")
 	if region == "" {
 		region = "us"
@@ -45,6 +60,7 @@ func main() {
 
 	handler := &proxyHandler{
 		metricsHandler: metrics.Handler(region),
+		password:       password,
 	}
 
 	go func() {
@@ -74,8 +90,7 @@ func main() {
 
 	srv := &http.Server{
 		Handler: handler,
-		// Map non-nil vide = HTTP/2 désactivé.
-		// CONNECT exige Hijack(), qui n'existe qu'en HTTP/1.1.
+		// Map non-nil vide = HTTP/2 désactivé. CONNECT exige Hijack(), HTTP/1.1 uniquement.
 		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 	}
 
