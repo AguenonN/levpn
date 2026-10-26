@@ -1,2 +1,8 @@
-# Shell scripts are deployment glue: keep GitHub reporting the project as Go.
+# Language stats show the core (the Go proxy). Deployment scripts, Terraform and the
+# web front-ends (portal, dashboard, browser extension) are excluded from the count,
+# not from the repository.
 *.sh linguist-vendored
+infra/** linguist-vendored
+portal/** linguist-vendored
+dashboard/** linguist-vendored
+extension/** linguist-vendored
