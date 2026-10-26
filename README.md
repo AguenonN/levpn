@@ -1,10 +1,10 @@
 # leVPN
 
-A multi-region HTTP CONNECT tunnel built from scratch in Go. Designed to bypass strict enterprise firewalls (SASE/SSE) by blending in with standard TLS traffic.
+A multi-region HTTP CONNECT forward proxy written from scratch in Go and deployed on AWS with Terraform.
 
 ## Context
 
-Familiar with how enterprise firewalls and SASE gateways filter outbound traffic, I wanted to understand the evasion techniques from the other side. Instead of deploying heavy, easily fingerprinted protocols like OpenVPN or WireGuard, I built an application-layer tunnel that strictly mimics regular web browsing.
+My day job is designing SASE/SSE egress controls for enterprise clients. leVPN is the other end of that pipe: a minimal proxy I run myself, to see what those controls observe from the client side and what it takes to operate one safely: TLS, PAC distribution, metrics, and hardening against SSRF.
 
 ## Architecture
 
@@ -46,15 +46,19 @@ Familiar with how enterprise firewalls and SASE gateways filter outbound traffic
 
 ## Execution & Technical ROI
 
-### 1. From-scratch TCP Hijacking & DPI Evasion
+### 1. From-scratch CONNECT relay
 
-The Go server relies solely on the standard `net` and `net/http` libraries, avoiding third-party proxy frameworks. It handles HTTP CONNECT requests, hijacks the underlying TCP connection, and relays bidirectional data optimally using `io.Copy`. On port 443, valid TLS certificates ensure the traffic is indistinguishable from standard HTTPS browsing. Unauthorized scanners or bots receive an immediate 407 rejection via Basic Auth, effectively turning the nodes into black holes.
+The Go server relies solely on the standard `net` and `net/http` libraries, avoiding third-party proxy frameworks. It handles HTTP CONNECT requests, hijacks the underlying TCP connection, and relays bidirectional data optimally using `io.Copy`. On port 443 the proxy serves a valid TLS certificate. Unauthorized scanners or bots receive an immediate 407 rejection via Basic Auth, effectively turning the nodes into black holes.
 
-### 2. The Chromium PAC Workaround (Dual-Listener)
+### 2. Hardening
+
+Every `CONNECT` destination is resolved before dialing and refused (`403`) if any address is loopback, private, link-local (which covers the EC2 metadata endpoint) or CGNAT; the proxy then dials the checked IP, so a second DNS answer cannot redirect it (DNS rebinding). Only ports 80 and 443 are allowed, plain-HTTP forward requests get a `405`, `/metrics` requires the proxy credentials, an empty configured password rejects every request, and the password check runs in constant time.
+
+### 3. The Chromium PAC Workaround (Dual-Listener)
 
 Chromium-based browsers inherently fail to route traffic through HTTPS proxies configured via PAC files. To maintain a zero-install UX without breaking security, leVPN implements a dual-listener. Port 8080 handles plain HTTP CONNECT with Basic Auth specifically for browsers, while port 443 enforces full TLS for system clients and tools like `curl`.
 
-### 3. DRY Infrastructure-as-Code
+### 4. DRY Infrastructure-as-Code
 
 The infrastructure is fully managed by a custom Terraform module deployed across four AWS regions on t3.micro instances (~$10/region/month). I bypassed the classic DNS-vs-TLS chicken-and-egg problem (where the Certbot HTTP-01 challenge requires DNS resolution, which in turn requires the EC2 Elastic IP) by using sequenced `null_resource` provisioners and explicit dependencies. Activating or decommissioning a region requires toggling a single boolean flag in HCL.
 

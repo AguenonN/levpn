@@ -1,0 +1,2 @@
+# Shell scripts are deployment glue: keep GitHub reporting the project as Go.
+*.sh linguist-vendored
