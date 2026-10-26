@@ -62,11 +62,11 @@ Chromium-based browsers inherently fail to route traffic through HTTPS proxies c
 
 The infrastructure is fully managed by a custom Terraform module deployed across four AWS regions on t3.micro instances (~$10/region/month). I bypassed the classic DNS-vs-TLS chicken-and-egg problem (where the Certbot HTTP-01 challenge requires DNS resolution, which in turn requires the EC2 Elastic IP) by using sequenced `null_resource` provisioners and explicit dependencies. Activating or decommissioning a region requires toggling a single boolean flag in HCL.
 
-### 4. Zero-Install Distribution
+### 5. Zero-Install Distribution
 
 leVPN eliminates client-side friction by using Proxy Auto-Configuration (PAC) files hosted on S3 behind CloudFront. Any device (Windows, macOS, Linux, iOS, Android) connects via a single configuration URL — no agent, no binary, no installation.
 
-### 5. In-Process Telemetry
+### 6. In-Process Telemetry
 
 To keep the t3.micro footprint minimal without depending on external monitoring agents, leVPN embeds its own metrics system: atomic counters (active connections, total bytes in/out, auth failures), a thread-safe ring buffer storing the last 200 connections, and a `/metrics` JSON endpoint consumed in real-time by a React dashboard polling every 5 seconds. Management plane traffic (portal, PAC files, monitoring) is strictly separated from the data plane — the dashboard must bypass the proxy to avoid routing observability traffic through the tunnel it's monitoring.
 
